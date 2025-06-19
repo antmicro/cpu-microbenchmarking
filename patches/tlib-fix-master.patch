@@ -1,0 +1,1105 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 7fa5878..522dccc 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.12)
+ project (tlib LANGUAGES C)
+ 
+ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+-    set(DEBUG_DEF "-DDEBUG -DDEBUG_ON")
++    set(DEBUG_DEF "-DDEBUG -DDEBUG_ON -g3")
+ endif()
+ 
+ if(NOT DEFINED HOST_ARCH)
+diff --git a/arch/arm64/cpu.h b/arch/arm64/cpu.h
+index 2809af0..a39cc41 100644
+--- a/arch/arm64/cpu.h
++++ b/arch/arm64/cpu.h
+@@ -2868,7 +2868,7 @@ static inline uint64_t *aa64_vfp_qreg(CPUARMState *env, unsigned regno)
+ }
+ 
+ /* Shared between translate-sve.c and sve_helper.c.  */
+-extern const uint64_t pred_esz_masks[5];
++extern __thread const uint64_t pred_esz_masks[5];
+ 
+ /* Helper for the macros below, validating the argument type. */
+ static inline MemTxAttrs *typecheck_memtxattrs(MemTxAttrs *x)
+diff --git a/arch/arm64/translate.c b/arch/arm64/translate.c
+index ba7da89..4918b33 100644
+--- a/arch/arm64/translate.c
++++ b/arch/arm64/translate.c
+@@ -51,7 +51,7 @@ static TCGv_i32 cpu_R[16];
+ TCGv_i32 cpu_CF, cpu_NF, cpu_VF, cpu_ZF;
+ TCGv_i64 cpu_exclusive_addr;
+ TCGv_i64 cpu_exclusive_val;
+-extern TCGv_i64 cpu_PC;
++extern __thread TCGv_i64 cpu_PC;
+ 
+ static const char *const regnames[] = { "r0", "r1", "r2",  "r3",  "r4",  "r5",  "r6",  "r7",
+                                         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "pc" };
+diff --git a/arch/arm64/translate.h b/arch/arm64/translate.h
+index 4f9a51c..547ed3e 100644
+--- a/arch/arm64/translate.h
++++ b/arch/arm64/translate.h
+@@ -9,9 +9,9 @@ typedef struct DisasCompare {
+ } DisasCompare;
+ 
+ /* Share the TCG temporaries common between 32 and 64 bit modes.  */
+-extern TCGv_i32 cpu_NF, cpu_ZF, cpu_CF, cpu_VF;
+-extern TCGv_i64 cpu_exclusive_addr;
+-extern TCGv_i64 cpu_exclusive_val;
++extern __thread TCGv_i32 cpu_NF, cpu_ZF, cpu_CF, cpu_VF;
++extern __thread TCGv_i64 cpu_exclusive_addr;
++extern __thread TCGv_i64 cpu_exclusive_val;
+ 
+ /*
+  * Constant expanders for the decoders.
+@@ -134,7 +134,7 @@ static inline void disas_set_insn_syndrome(DisasContext *s, uint32_t syn)
+ void a64_translate_init(void);
+ void gen_a64_set_pc_im(uint64_t val);
+ void gen_exception_internal(int excp);
+-extern const TranslatorOps aarch64_translator_ops;
++extern __thread const TranslatorOps aarch64_translator_ops;
+ #else
+ static inline void a64_translate_init(void) { }
+ 
+diff --git a/arch/arm64/vec_internal.h b/arch/arm64/vec_internal.h
+index f69ec12..a655767 100644
+--- a/arch/arm64/vec_internal.h
++++ b/arch/arm64/vec_internal.h
+@@ -52,14 +52,14 @@
+ /*
+  * Expand active predicate bits to bytes, for byte elements.
+  */
+-extern const uint64_t expand_pred_b_data[256];
++extern __thread const uint64_t expand_pred_b_data[256];
+ static inline uint64_t expand_pred_b(uint8_t byte)
+ {
+     return expand_pred_b_data[byte];
+ }
+ 
+ /* Similarly for half-word elements. */
+-extern const uint64_t expand_pred_h_data[0x55 + 1];
++extern __thread const uint64_t expand_pred_h_data[0x55 + 1];
+ static inline uint64_t expand_pred_h(uint8_t byte)
+ {
+     return expand_pred_h_data[byte & 0x55];
+diff --git a/arch/ppc/cpu.h b/arch/ppc/cpu.h
+index 57b8d6f..45e7cee 100644
+--- a/arch/ppc/cpu.h
++++ b/arch/ppc/cpu.h
+@@ -244,7 +244,7 @@ enum {
+ enum {
+     /* Exception subtypes for POWERPC_EXCP_ALIGN                             */
+     POWERPC_EXCP_ALIGN_FP = 0x01,    /* FP alignment exception            */
+-    POWERPC_EXCP_ALIGN_LST = 0x02,   /* Unaligned mult/extern load/store  */
++    POWERPC_EXCP_ALIGN_LST = 0x02,   /* Unaligned mult/extern __thread load/store  */
+     POWERPC_EXCP_ALIGN_LE = 0x03,    /* Multiple little-endian access     */
+     POWERPC_EXCP_ALIGN_PROT = 0x04,  /* Access cross protection boundary  */
+     POWERPC_EXCP_ALIGN_BAT = 0x05,   /* Access cross a BAT/seg boundary   */
+@@ -2020,7 +2020,7 @@ static inline ppcmas_tlb_t *booke206_get_tlbm(CPUState *env, const int tlbn, tar
+     return &env->tlb.tlbm[r];
+ }
+ 
+-extern void (*cpu_ppc_hypercall)(CPUState *);
++extern __thread void (*cpu_ppc_hypercall)(CPUState *);
+ 
+ static inline bool cpu_has_work(CPUState *env)
+ {
+diff --git a/arch/riscv/translate.c b/arch/riscv/translate.c
+index ab7871e..967a57f 100644
+--- a/arch/riscv/translate.c
++++ b/arch/riscv/translate.c
+@@ -27,10 +27,10 @@
+ #include "tcg-op-atomic.h"
+ 
+ /* global register indices */
+-static TCGv cpu_gpr[32], cpu_pc, cpu_opcode;
+-static TCGv_i64 cpu_fpr[32]; /* assume F and D extensions */
+-static TCGv cpu_vstart;
+-static TCGv cpu_prev_sp;
++static __thread TCGv cpu_gpr[32], cpu_pc, cpu_opcode;
++static __thread TCGv_i64 cpu_fpr[32]; /* assume F and D extensions */
++static __thread TCGv cpu_vstart;
++static __thread TCGv cpu_prev_sp;
+ 
+ #include "tb-helper.h"
+ 
+diff --git a/arch/translate-all.c b/arch/translate-all.c
+index d240c55..f7851ac 100644
+--- a/arch/translate-all.c
++++ b/arch/translate-all.c
+@@ -34,11 +34,11 @@
+ 
+ int gen_new_label(void);
+ 
+-extern TCGv_ptr cpu_env;
+-extern CPUState *cpu;
++extern __thread TCGv_ptr cpu_env;
++extern __thread CPUState *cpu;
+ 
+-static int exit_no_hook_label;
+-static int block_header_interrupted_label;
++static __thread int exit_no_hook_label;
++static __thread int block_header_interrupted_label;
+ 
+ CPUBreakpoint *process_breakpoints(CPUState *env, target_ulong pc)
+ {
+diff --git a/arch/xtensa/core-apollolake/core-isa.h b/arch/xtensa/core-apollolake/core-isa.h
+index a41d11e..9fb753a 100644
+--- a/arch/xtensa/core-apollolake/core-isa.h
++++ b/arch/xtensa/core-apollolake/core-isa.h
+@@ -455,7 +455,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-baytrail/core-isa.h b/arch/xtensa/core-baytrail/core-isa.h
+index ef14a85..c02f1e6 100644
+--- a/arch/xtensa/core-baytrail/core-isa.h
++++ b/arch/xtensa/core-baytrail/core-isa.h
+@@ -467,7 +467,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-cannonlake/core-isa.h b/arch/xtensa/core-cannonlake/core-isa.h
+index 1c8ba9d..b2fb8a1 100644
+--- a/arch/xtensa/core-cannonlake/core-isa.h
++++ b/arch/xtensa/core-cannonlake/core-isa.h
+@@ -424,7 +424,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-dc233c/core-isa.h b/arch/xtensa/core-dc233c/core-isa.h
+index 87f9a7b..d554856 100644
+--- a/arch/xtensa/core-dc233c/core-isa.h
++++ b/arch/xtensa/core-dc233c/core-isa.h
+@@ -362,7 +362,7 @@ EXCSAVE/EPS/EPC_n, RFI n) */
+     2                                          /* Xtensa Exception Architecture \
+ number: 1 == XEA1 (old)                \
+ 2 == XEA2 (new)                        \
+-0 == XEAX (extern) or TX */
++0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-de212/core-isa.h b/arch/xtensa/core-de212/core-isa.h
+index da801d4..f7d194a 100644
+--- a/arch/xtensa/core-de212/core-isa.h
++++ b/arch/xtensa/core-de212/core-isa.h
+@@ -480,7 +480,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-de233_fpu/core-isa.h b/arch/xtensa/core-de233_fpu/core-isa.h
+index 8551f43..57f8843 100644
+--- a/arch/xtensa/core-de233_fpu/core-isa.h
++++ b/arch/xtensa/core-de233_fpu/core-isa.h
+@@ -580,7 +580,7 @@
+                                                       number: 1 == XEA1 (until T1050)       \
+                                                               2 == XEA2 (T1040 onwards)     \
+                                                               3 == XEA3 (LX8/NX/SX onwards) \
+-                                                              0 == XEAX (extern) or TX */
++                                                              0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1                 0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2                 1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEA3                 0          /* Exception Architecture 3 */
+diff --git a/arch/xtensa/core-dsp3400/core-isa.h b/arch/xtensa/core-dsp3400/core-isa.h
+index b3f5a6d..02c6bf4 100644
+--- a/arch/xtensa/core-dsp3400/core-isa.h
++++ b/arch/xtensa/core-dsp3400/core-isa.h
+@@ -348,7 +348,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) */
++                                                          0 == XEAX (extern __thread) */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-esp32/core-isa.h b/arch/xtensa/core-esp32/core-isa.h
+index 4c66ac1..2c6b071 100644
+--- a/arch/xtensa/core-esp32/core-isa.h
++++ b/arch/xtensa/core-esp32/core-isa.h
+@@ -527,7 +527,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-esp32s2/core-isa.h b/arch/xtensa/core-esp32s2/core-isa.h
+index b9608fb..7aedc86 100644
+--- a/arch/xtensa/core-esp32s2/core-isa.h
++++ b/arch/xtensa/core-esp32s2/core-isa.h
+@@ -570,7 +570,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-esp32s3/core-isa.h b/arch/xtensa/core-esp32s3/core-isa.h
+index bad88c3..58d7b23 100644
+--- a/arch/xtensa/core-esp32s3/core-isa.h
++++ b/arch/xtensa/core-esp32s3/core-isa.h
+@@ -540,7 +540,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-haswell/core-isa.h b/arch/xtensa/core-haswell/core-isa.h
+index 3b4a562..729d9d3 100644
+--- a/arch/xtensa/core-haswell/core-isa.h
++++ b/arch/xtensa/core-haswell/core-isa.h
+@@ -480,7 +480,7 @@
+     2                               /* Xtensa Exception Architecture \
+                                        number: 1 == XEA1 (old)       \
+                                                2 == XEA2 (new)       \
+-                                               0 == XEAX (extern) or TX */
++                                               0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1           0 /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2           1 /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX           0 /* External Exception Arch. */
+diff --git a/arch/xtensa/core-icelake/core-isa.h b/arch/xtensa/core-icelake/core-isa.h
+index 1c8ba9d..b2fb8a1 100644
+--- a/arch/xtensa/core-icelake/core-isa.h
++++ b/arch/xtensa/core-icelake/core-isa.h
+@@ -424,7 +424,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-imx8/core-isa.h b/arch/xtensa/core-imx8/core-isa.h
+index eb50a1c..f35edc6 100644
+--- a/arch/xtensa/core-imx8/core-isa.h
++++ b/arch/xtensa/core-imx8/core-isa.h
+@@ -504,7 +504,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-imx8m/core-isa.h b/arch/xtensa/core-imx8m/core-isa.h
+index 54c943d..61a19d6 100644
+--- a/arch/xtensa/core-imx8m/core-isa.h
++++ b/arch/xtensa/core-imx8m/core-isa.h
+@@ -504,7 +504,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-sample_controller/core-isa.h b/arch/xtensa/core-sample_controller/core-isa.h
+index 0346610..5322daf 100644
+--- a/arch/xtensa/core-sample_controller/core-isa.h
++++ b/arch/xtensa/core-sample_controller/core-isa.h
+@@ -502,7 +502,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-test_kc705_be/core-isa.h b/arch/xtensa/core-test_kc705_be/core-isa.h
+index 839fc5a..ae04f77 100644
+--- a/arch/xtensa/core-test_kc705_be/core-isa.h
++++ b/arch/xtensa/core-test_kc705_be/core-isa.h
+@@ -443,7 +443,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-test_mmuhifi_c3/core-isa.h b/arch/xtensa/core-test_mmuhifi_c3/core-isa.h
+index e9fc712..57a50ae 100644
+--- a/arch/xtensa/core-test_mmuhifi_c3/core-isa.h
++++ b/arch/xtensa/core-test_mmuhifi_c3/core-isa.h
+@@ -362,7 +362,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/core-tigerlake/core-isa.h b/arch/xtensa/core-tigerlake/core-isa.h
+index 88eab95..ee2420c 100644
+--- a/arch/xtensa/core-tigerlake/core-isa.h
++++ b/arch/xtensa/core-tigerlake/core-isa.h
+@@ -483,7 +483,7 @@
+     2                                          /* Xtensa Exception Architecture \
+                                                   number: 1 == XEA1 (old)       \
+                                                           2 == XEA2 (new)       \
+-                                                          0 == XEAX (extern) or TX */
++                                                          0 == XEAX (extern __thread) or TX */
+ #define XCHAL_HAVE_XEA1             0          /* Exception Architecture 1 */
+ #define XCHAL_HAVE_XEA2             1          /* Exception Architecture 2 */
+ #define XCHAL_HAVE_XEAX             0          /* External Exception Arch. */
+diff --git a/arch/xtensa/cpu.h b/arch/xtensa/cpu.h
+index 23be1f0..e028e93 100644
+--- a/arch/xtensa/cpu.h
++++ b/arch/xtensa/cpu.h
+@@ -407,9 +407,9 @@ typedef struct XtensaOpcodeTranslators {
+     const XtensaOpcodeOps *opcode;
+ } XtensaOpcodeTranslators;
+ 
+-extern const XtensaOpcodeTranslators xtensa_core_opcodes;
+-extern const XtensaOpcodeTranslators xtensa_fpu2000_opcodes;
+-extern const XtensaOpcodeTranslators xtensa_fpu_opcodes;
++extern __thread const XtensaOpcodeTranslators xtensa_core_opcodes;
++extern __thread const XtensaOpcodeTranslators xtensa_fpu2000_opcodes;
++extern __thread const XtensaOpcodeTranslators xtensa_fpu_opcodes;
+ 
+ struct XtensaConfig {
+     const char *name;
+@@ -739,21 +739,21 @@ XtensaConfig *xtensa_finalize_config(const char *);
+ #define DISAS_NORETURN 4
+ #define DISAS_TOO_MANY 5
+ 
+-extern XtensaConfig apollolake;
+-extern XtensaConfig baytrail;
+-extern XtensaConfig cannonlake;
+-extern XtensaConfig dc233c;
+-extern XtensaConfig de212;
+-extern XtensaConfig de233_fpu;
+-extern XtensaConfig dsp3400;
+-extern XtensaConfig esp32;
+-extern XtensaConfig esp32s2;
+-extern XtensaConfig esp32s3;
+-extern XtensaConfig haswell;
+-extern XtensaConfig icelake;
+-extern XtensaConfig imx8;
+-extern XtensaConfig imx8m;
+-extern XtensaConfig sample_controller;
+-extern XtensaConfig test_kc705_be;
+-extern XtensaConfig test_mmuhifi_c3;
+-extern XtensaConfig tigerlake;
++extern __thread XtensaConfig apollolake;
++extern __thread XtensaConfig baytrail;
++extern __thread XtensaConfig cannonlake;
++extern __thread XtensaConfig dc233c;
++extern __thread XtensaConfig de212;
++extern __thread XtensaConfig de233_fpu;
++extern __thread XtensaConfig dsp3400;
++extern __thread XtensaConfig esp32;
++extern __thread XtensaConfig esp32s2;
++extern __thread XtensaConfig esp32s3;
++extern __thread XtensaConfig haswell;
++extern __thread XtensaConfig icelake;
++extern __thread XtensaConfig imx8;
++extern __thread XtensaConfig imx8m;
++extern __thread XtensaConfig sample_controller;
++extern __thread XtensaConfig test_kc705_be;
++extern __thread XtensaConfig test_mmuhifi_c3;
++extern __thread XtensaConfig tigerlake;
+diff --git a/arch/xtensa/helper.c b/arch/xtensa/helper.c
+index 4b8a2d9..5875092 100644
+--- a/arch/xtensa/helper.c
++++ b/arch/xtensa/helper.c
+@@ -30,7 +30,7 @@
+ #include "tb-helper.h"
+ #include "ttable.h"
+ 
+-extern CPUState *env;
++extern __thread CPUState *env;
+ 
+ typedef int MMUAccessType;
+ typedef uint64_t vaddr;
+diff --git a/arch/xtensa/xtensa-isa-internal.h b/arch/xtensa/xtensa-isa-internal.h
+index 6979389..91619cf 100644
+--- a/arch/xtensa/xtensa-isa-internal.h
++++ b/arch/xtensa/xtensa-isa-internal.h
+@@ -224,5 +224,5 @@ typedef struct xtensa_isa_internal_struct {
+ 
+ int xtensa_isa_name_compare(const void *, const void *);
+ 
+-extern xtensa_isa_status xtisa_errno;
+-extern char xtisa_error_msg[];
++extern __thread xtensa_isa_status xtisa_errno;
++extern __thread char xtisa_error_msg[];
+diff --git a/arch/xtensa/xtensa-isa.h b/arch/xtensa/xtensa-isa.h
+index 6b13ecc..c5b6f3d 100644
+--- a/arch/xtensa/xtensa-isa.h
++++ b/arch/xtensa/xtensa-isa.h
+@@ -25,7 +25,7 @@
+ #pragma once
+ 
+ #ifdef __cplusplus
+-extern "C" {
++extern __thread "C" {
+ #endif
+ 
+ /*
+diff --git a/callbacks.c b/callbacks.c
+index 63891bf..df5044d 100644
+--- a/callbacks.c
++++ b/callbacks.c
+@@ -79,7 +79,7 @@ DEFAULT_VOID_HANDLER2(void tlib_invalidate_tb_in_other_cpus, uintptr_t start, ui
+ 
+ DEFAULT_INT_HANDLER1(uint32_t tlib_get_mp_index, void)
+ 
+-int32_t tlib_is_on_block_translation_enabled;
++__thread int32_t tlib_is_on_block_translation_enabled;
+ 
+ void tlib_set_on_block_translation_enabled(int32_t value)
+ {
+diff --git a/cpu-exec.c b/cpu-exec.c
+index 6441a12..0ef65e4 100644
+--- a/cpu-exec.c
++++ b/cpu-exec.c
+@@ -113,7 +113,7 @@ target_ulong virt_to_phys(target_ulong virtual, uint32_t access_type, uint32_t n
+     return physical;
+ }
+ 
+-int tb_invalidated_flag;
++__thread int tb_invalidated_flag;
+ 
+ void TLIB_NORETURN cpu_loop_exit_without_hook(CPUState *env)
+ {
+@@ -252,7 +252,7 @@ static inline TranslationBlock *tb_find_fast(CPUState *env)
+     return tb;
+ }
+ 
+-static CPUDebugExcpHandler *debug_excp_handler;
++static __thread CPUDebugExcpHandler *debug_excp_handler;
+ 
+ CPUDebugExcpHandler *cpu_set_debug_excp_handler(CPUDebugExcpHandler *handler)
+ {
+diff --git a/debug.c b/debug.c
+index 8c32239..610ca5b 100644
+--- a/debug.c
++++ b/debug.c
+@@ -29,7 +29,7 @@
+ #include <string.h>
+ #include "debug.h"
+ 
+-char *msgs[MAX_MSG_COUNT];
++__thread char *msgs[MAX_MSG_COUNT];
+ #define MAX_MSG_LENGTH 4096
+ 
+ #ifdef DEBUG_ON
+diff --git a/exec.c b/exec.c
+index 7f9e901..9c1c524 100644
+--- a/exec.c
++++ b/exec.c
+@@ -31,21 +31,21 @@
+ 
+ #define SMC_BITMAP_USE_THRESHOLD 10
+ 
+-CPUState *env;
+-extern void *global_retaddr;
++__thread CPUState *env;
++extern __thread void *global_retaddr;
+ 
+-static TranslationBlock *tbs;
+-static int code_gen_max_blocks;
+-TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
+-static int nb_tbs;
++static __thread TranslationBlock *tbs;
++static __thread int code_gen_max_blocks;
++__thread TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
++static __thread int nb_tbs;
+ /* any access to the tbs or the page table must use this lock */
+ 
+-extern uint64_t code_gen_buffer_size;
++extern __thread uint64_t code_gen_buffer_size;
+ /* threshold to flush the translated code buffer */
+-static uint64_t code_gen_buffer_max_size;
+-static uint8_t *code_gen_ptr;
++static __thread uint64_t code_gen_buffer_max_size;
++static __thread uint8_t *code_gen_ptr;
+ 
+-CPUState *cpu;
++__thread CPUState *cpu;
+ 
+ typedef struct PageDesc {
+     /* list of TBs intersecting this ram page */
+@@ -91,23 +91,23 @@ typedef struct PageDesc {
+ #define P_L1_SHIFT (TARGET_PHYS_ADDR_SPACE_BITS - TARGET_PAGE_BITS - P_L1_BITS)
+ #define V_L1_SHIFT (L1_MAP_ADDR_SPACE_BITS - TARGET_PAGE_BITS - V_L1_BITS)
+ 
+-uintptr_t tlib_real_host_page_size;
+-uintptr_t tlib_host_page_bits;
+-uintptr_t tlib_host_page_size;
+-uintptr_t tlib_host_page_mask;
++__thread uintptr_t tlib_real_host_page_size;
++__thread uintptr_t tlib_host_page_bits;
++__thread uintptr_t tlib_host_page_size;
++__thread uintptr_t tlib_host_page_mask;
+ 
+ /* This is a multi-level map on the virtual address space.
+    The bottom level has pointers to PageDesc.  */
+-static void *l1_map[V_L1_SIZE];
++static __thread void *l1_map[V_L1_SIZE];
+ 
+ /* This is a multi-level map on the physical address space.
+    The bottom level has pointers to PhysPageDesc.  */
+-static void *l1_phys_map[P_L1_SIZE];
++static __thread void *l1_phys_map[P_L1_SIZE];
+ 
+ /* statistics */
+-static int tlb_flush_count;
+-static int tb_flush_count;
+-static int tb_phys_invalidate_count;
++static __thread int tlb_flush_count;
++static __thread int tb_flush_count;
++static __thread int tb_phys_invalidate_count;
+ 
+ static void page_init(void)
+ {
+@@ -187,6 +187,8 @@ void free_all_page_descriptors()
+     for(i = 0; i < V_L1_SIZE; i++) {
+         free_all_page_descriptors_inner(l1_map + i, V_L1_SHIFT / L2_BITS - 1, free_page_code_bitmap);
+     }
++    memset(l1_phys_map, 0, sizeof(void*) * P_L1_SIZE);
++    memset(l1_map, 0, sizeof(void*) * V_L1_SIZE);
+ }
+ 
+ static PageDesc *page_find_alloc(tb_page_addr_t index, int alloc)
+@@ -309,8 +311,8 @@ static void tlb_unprotect_code_phys(CPUState *env, ram_addr_t ram_addr, target_u
+     do {              \
+     } while(0)
+ 
+-extern uint64_t translation_cache_size_min;
+-extern uint64_t translation_cache_size_max;
++extern __thread uint64_t translation_cache_size_min;
++extern __thread uint64_t translation_cache_size_max;
+ 
+ static bool code_gen_alloc()
+ {
+@@ -383,7 +385,7 @@ void code_gen_free(void)
+     tlib_free(tbs);
+ }
+ 
+-TCGv_ptr cpu_env;
++__thread TCGv_ptr cpu_env;
+ 
+ /* Must be called before using the QEMU cpus.*/
+ 
+@@ -1234,7 +1236,7 @@ static void handle_interrupt(CPUState *env, int mask)
+     env->exit_request = 1;
+ }
+ 
+-CPUInterruptHandler cpu_interrupt_handler = handle_interrupt;
++__thread CPUInterruptHandler cpu_interrupt_handler = handle_interrupt;
+ 
+ void cpu_reset_interrupt(CPUState *env, int mask)
+ {
+@@ -1337,7 +1339,7 @@ static inline void tlb_flush_jmp_cache(CPUState *env, target_ulong addr)
+     memset(&env->tb_jmp_cache[i], 0, TB_JMP_PAGE_SIZE * sizeof(TranslationBlock *));
+ }
+ 
+-static CPUTLBEntry s_cputlb_empty_entry = {
++static __thread CPUTLBEntry s_cputlb_empty_entry = {
+     .addr_read = -1,
+     .addr_write = -1,
+     .addr_code = -1,
+diff --git a/exports.c b/exports.c
+index 4fdf531..433664a 100644
+--- a/exports.c
++++ b/exports.c
+@@ -30,7 +30,7 @@
+ 
+ __thread struct unwind_state unwind_state;
+ 
+-static tcg_t stcg;
++static __thread tcg_t stcg;
+ 
+ void gen_helpers(void)
+ {
+@@ -172,7 +172,7 @@ char *tlib_get_arch()
+ 
+ EXC_POINTER_0(char *, tlib_get_arch)
+ 
+-uint32_t maximum_block_size;
++__thread uint32_t maximum_block_size;
+ 
+ uint32_t tlib_set_maximum_block_size(uint32_t size)
+ {
+@@ -377,7 +377,7 @@ EXC_INT_1(int32_t, tlib_execute, int32_t, max_insns)
+ 
+ int tlib_restore_context(void);
+ 
+-extern void *global_retaddr;
++extern __thread void *global_retaddr;
+ 
+ //  This function should only be called from at most one level of C -> C# calls, otherwise
+ //  when the outermost C# method returns the frames of the inner ones will be longjmped over.
+@@ -518,8 +518,8 @@ void tlib_remove_breakpoint(uint64_t address)
+ 
+ EXC_VOID_1(tlib_remove_breakpoint, uint64_t, address)
+ 
+-uint64_t translation_cache_size_min = MIN_CODE_GEN_BUFFER_SIZE;
+-uint64_t translation_cache_size_max = MAX_CODE_GEN_BUFFER_SIZE;
++__thread uint64_t translation_cache_size_min = MIN_CODE_GEN_BUFFER_SIZE;
++__thread uint64_t translation_cache_size_max = MAX_CODE_GEN_BUFFER_SIZE;
+ 
+ void tlib_set_translation_cache_configuration(uint64_t min_size, uint64_t max_size)
+ {
+diff --git a/helper.c b/helper.c
+index 5cfe4b5..2b4b434 100644
+--- a/helper.c
++++ b/helper.c
+@@ -7,8 +7,8 @@
+ 
+ //  Dirty addresses handling
+ #define MAX_DIRTY_ADDRESSES_LIST_COUNT 100
+-static uint64_t dirty_addresses_list[MAX_DIRTY_ADDRESSES_LIST_COUNT];
+-static short current_dirty_addresses_list_index = 0;
++static __thread uint64_t dirty_addresses_list[MAX_DIRTY_ADDRESSES_LIST_COUNT];
++static __thread short current_dirty_addresses_list_index = 0;
+ 
+ void flush_dirty_addresses_list()
+ {
+@@ -104,7 +104,7 @@ void HELPER(block_finished_event)(target_ulong address, uint32_t executed_instru
+ 
+ void HELPER(try_exit_cpu_loop)(CPUState *env)
+ {
+-    extern void *global_retaddr;
++    extern __thread void *global_retaddr;
+ 
+     if(unlikely(env->exception_index >= 0)) {
+         global_retaddr = GETPC();
+diff --git a/include/callbacks.h b/include/callbacks.h
+index 9cbfb89..29e7012 100644
+--- a/include/callbacks.h
++++ b/include/callbacks.h
+@@ -79,7 +79,7 @@ void tlib_on_translation_block_find_slow(uint64_t pc);
+ uint32_t tlib_on_block_begin(uint64_t address, uint32_t size);
+ void tlib_on_translation_cache_size_change(uint64_t new_size);
+ void tlib_on_block_translation(uint64_t start, uint32_t size, uint32_t flags);
+-extern int32_t tlib_is_on_block_translation_enabled;
++extern __thread int32_t tlib_is_on_block_translation_enabled;
+ void tlib_set_on_block_translation_enabled(int32_t value);
+ void tlib_on_block_finished(uint64_t pc, uint32_t executed_instructions);
+ void tlib_on_interrupt_begin(uint64_t exception_index);
+diff --git a/include/cpu-all.h b/include/cpu-all.h
+index 38f25b4..5f671f6 100644
+--- a/include/cpu-all.h
++++ b/include/cpu-all.h
+@@ -476,10 +476,10 @@ static inline void stfq_be_p(void *ptr, float64 v)
+ #define TARGET_PAGE_MASK ~(TARGET_PAGE_SIZE - 1)
+ 
+ /* ??? These should be the larger of unsigned long and target_ulong.  */
+-extern uintptr_t tlib_real_host_page_size;
+-extern uintptr_t tlib_host_page_bits;
+-extern uintptr_t tlib_host_page_size;
+-extern uintptr_t tlib_host_page_mask;
++extern __thread uintptr_t tlib_real_host_page_size;
++extern __thread uintptr_t tlib_host_page_bits;
++extern __thread uintptr_t tlib_host_page_size;
++extern __thread uintptr_t tlib_host_page_mask;
+ 
+ /* Access types as used in the get_phys_addr* functions */
+ #define ACCESS_DATA_LOAD  0
+@@ -516,7 +516,7 @@ enum GUEST_PROFILER_ANNOUNCEMENT {
+ };
+ 
+ void cpu_abort(CPUState *env, const char *fmt, ...);
+-extern CPUState *cpu;
++extern __thread CPUState *cpu;
+ 
+ static inline uint32_t is_page_access_valid(uint32_t page_protection_bits, uint32_t access_type)
+ {
+@@ -579,7 +579,7 @@ static inline uint32_t is_page_access_valid(uint32_t page_protection_bits, uint3
+ 
+ typedef void (*CPUInterruptHandler)(CPUState *, int);
+ 
+-extern CPUInterruptHandler cpu_interrupt_handler;
++extern __thread CPUInterruptHandler cpu_interrupt_handler;
+ 
+ static inline void cpu_interrupt(CPUState *s, int mask)
+ {
+diff --git a/include/cpu-defs.h b/include/cpu-defs.h
+index 3e5815b..70776ab 100644
+--- a/include/cpu-defs.h
++++ b/include/cpu-defs.h
+@@ -136,7 +136,7 @@ typedef struct CPUTLBEntry {
+                   (sizeof(target_ulong) * 3 + ((-sizeof(target_ulong) * 3) & (sizeof(uintptr_t) - 1)) + sizeof(uintptr_t))];
+ } CPUTLBEntry;
+ 
+-extern int CPUTLBEntry_wrong_size[sizeof(CPUTLBEntry) == (1 << CPU_TLB_ENTRY_BITS) ? 1 : -1];
++extern __thread int CPUTLBEntry_wrong_size[sizeof(CPUTLBEntry) == (1 << CPU_TLB_ENTRY_BITS) ? 1 : -1];
+ 
+ #define CPU_COMMON_TLB                                                \
+     /* The meaning of the MMU modes is defined in the target code. */ \
+diff --git a/include/debug.h b/include/debug.h
+index b53a3bd..c553cd0 100644
+--- a/include/debug.h
++++ b/include/debug.h
+@@ -4,7 +4,7 @@
+ #include "tcg-op.h"
+ 
+ #define MAX_MSG_COUNT 10000
+-extern char *msgs[MAX_MSG_COUNT];
++extern __thread char *msgs[MAX_MSG_COUNT];
+ 
+ #ifdef DEBUG_ON
+ #define LOG_CURRENT_LOCATION()                                                             \
+diff --git a/include/exec-all.h b/include/exec-all.h
+index 7e42fb5..c3547d3 100644
+--- a/include/exec-all.h
++++ b/include/exec-all.h
+@@ -27,7 +27,7 @@
+ #include "cpu.h"
+ #include "tcg-op.h"
+ 
+-extern CPUState *env;
++extern __thread CPUState *env;
+ 
+ /* Page tracking code uses ram addresses in system mode, and virtual
+    addresses in userspace mode.  Define tb_page_addr_t to be an appropriate
+@@ -104,7 +104,7 @@ int get_external_mmu_phys_addr(CPUState *env, uint32_t address, int access_type,
+    according to the host CPU */
+ #define CODE_GEN_AVG_BLOCK_SIZE 128
+ 
+-extern uint32_t maximum_block_size;
++extern __thread uint32_t maximum_block_size;
+ 
+ struct TranslationBlock {
+     target_ulong pc;      /* simulated PC corresponding to this block (EIP + CS base) */
+@@ -191,7 +191,7 @@ void tb_flush(CPUState *env);
+ void tb_link_page(TranslationBlock *tb, tb_page_addr_t phys_page1, tb_page_addr_t phys_page2);
+ void tb_phys_invalidate(TranslationBlock *tb, tb_page_addr_t page_addr);
+ 
+-extern TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
++extern __thread TranslationBlock *tb_phys_hash[CODE_GEN_PHYS_HASH_SIZE];
+ 
+ /* tb_set_jmp_target1 gets called with jmp_addr pointing to a branch instruction
+  * already emited by the tcg_target.
+@@ -270,7 +270,7 @@ static inline void tb_add_jump(TranslationBlock *tb, int n, TranslationBlock *tb
+ 
+ TranslationBlock *tb_find_pc(uintptr_t pc_ptr);
+ 
+-extern int tb_invalidated_flag;
++extern __thread int tb_invalidated_flag;
+ 
+ void mark_tbs_containing_pc_as_dirty(target_ulong addr, int access_width, int broadcast);
+ void flush_dirty_addresses_list(void);
+diff --git a/include/softmmu_template.h b/include/softmmu_template.h
+index 3c04085..d387f43 100644
+--- a/include/softmmu_template.h
++++ b/include/softmmu_template.h
+@@ -25,7 +25,7 @@
+ #include <stdint.h>
+ #include "atomic.h"
+ 
+-extern void *global_retaddr;
++extern __thread void *global_retaddr;
+ 
+ #define DATA_SIZE (1 << SHIFT)
+ 
+diff --git a/include/tb-helper.h b/include/tb-helper.h
+index cd1a318..c6a866f 100644
+--- a/include/tb-helper.h
++++ b/include/tb-helper.h
+@@ -12,4 +12,4 @@
+ #define GEN_HELPER 1
+ #include "helper.h"
+ 
+-extern TCGv_ptr cpu_env;
++extern __thread TCGv_ptr cpu_env;
+diff --git a/include/tlib-alloc.h b/include/tlib-alloc.h
+index 040e741..4623cc7 100644
+--- a/include/tlib-alloc.h
++++ b/include/tlib-alloc.h
+@@ -7,10 +7,10 @@
+ //  Size in bytes of the tcg prologue, put at the end of the code_gen_buffer
+ #define TCG_PROLOGUE_SIZE 1024
+ 
+-extern uint8_t *tcg_rw_buffer;
+-extern uint8_t *tcg_rx_buffer;
+-extern intptr_t tcg_wx_diff;
+-extern uint64_t code_gen_buffer_size;
++extern __thread uint8_t *tcg_rw_buffer;
++extern __thread uint8_t *tcg_rx_buffer;
++extern __thread intptr_t tcg_wx_diff;
++extern __thread uint64_t code_gen_buffer_size;
+ 
+ static inline bool is_ptr_in_rw_buf(const void *ptr)
+ {
+diff --git a/infrastructure.c b/infrastructure.c
+index 6dabb22..009688a 100644
+--- a/infrastructure.c
++++ b/infrastructure.c
+@@ -26,7 +26,7 @@
+ #include "callbacks.h"
+ #include "infrastructure.h"
+ 
+-void *global_retaddr = 0;
++__thread void *global_retaddr = 0;
+ 
+ #if defined(__linux__) && defined(__x86_64__)
+ 
+diff --git a/tcg/additional.c b/tcg/additional.c
+index 6d7a954..a578b34 100644
+--- a/tcg/additional.c
++++ b/tcg/additional.c
+@@ -25,7 +25,7 @@
+ #include <string.h>
+ #include "tcg.h"
+ 
+-tcg_t *tcg;
++__thread tcg_t *tcg;
+ 
+ void *(*_TCG_malloc)(size_t);
+ 
+@@ -92,16 +92,16 @@ char *TCG_pstrcat(char *buf, int buf_size, const char *s)
+     return buf;
+ }
+ 
+-unsigned int temp_buf_offset;
+-unsigned int tlb_table_n_0[MMU_MODES_MAX];
+-unsigned int tlb_table_n_0_addr_read[MMU_MODES_MAX];
+-unsigned int tlb_table_n_0_addr_write[MMU_MODES_MAX];
+-unsigned int tlb_table_n_0_addend[MMU_MODES_MAX];
+-unsigned int tlb_entry_addr_read;
+-unsigned int tlb_entry_addr_write;
+-unsigned int tlb_entry_addend;
+-unsigned int sizeof_CPUTLBEntry;
+-int TARGET_PAGE_BITS;
++__thread unsigned int temp_buf_offset;
++__thread unsigned int tlb_table_n_0[MMU_MODES_MAX];
++__thread unsigned int tlb_table_n_0_addr_read[MMU_MODES_MAX];
++__thread unsigned int tlb_table_n_0_addr_write[MMU_MODES_MAX];
++__thread unsigned int tlb_table_n_0_addend[MMU_MODES_MAX];
++__thread unsigned int tlb_entry_addr_read;
++__thread unsigned int tlb_entry_addr_write;
++__thread unsigned int tlb_entry_addend;
++__thread unsigned int sizeof_CPUTLBEntry;
++__thread int TARGET_PAGE_BITS;
+ 
+ void set_TARGET_PAGE_BITS(int val)
+ {
+@@ -143,7 +143,7 @@ void set_tlb_table_n_0_rwa(int i, unsigned int read, unsigned int write, unsigne
+ #include "../include/infrastructure.h"
+ 
+ //  not thread safe - it relies on the property of Renode, that it disposes of machines sequentially
+-static FILE *perf_map_handle;
++static __thread FILE *perf_map_handle;
+ 
+ struct TranslationBlock;
+ typedef struct tcg_perf_map_symbol {
+@@ -158,7 +158,7 @@ typedef struct tcg_perf_map_symbol {
+ } tcg_perf_map_symbol;
+ 
+ //  self balancing (AVL) tree
+-static tcg_perf_map_symbol *symbols = NULL;
++static __thread tcg_perf_map_symbol *symbols = NULL;
+ 
+ /* Left/Right Rotation
+             |            Right               |
+diff --git a/tcg/additional.h b/tcg/additional.h
+index 65cbff1..b114b63 100644
+--- a/tcg/additional.h
++++ b/tcg/additional.h
+@@ -13,15 +13,15 @@ char *TCG_pstrcat(char *buf, int buf_size, const char *s);
+ //  The highest value of NB_MMU_MODES used incremented by one.
+ #define MMU_MODES_MAX 16
+ 
+-extern unsigned int temp_buf_offset;
+-extern unsigned int tlb_table_n_0_addr_read[MMU_MODES_MAX];
+-extern unsigned int tlb_table_n_0_addr_write[MMU_MODES_MAX];
+-extern unsigned int tlb_table_n_0_addend[MMU_MODES_MAX];
+-extern unsigned int tlb_table_n_0[MMU_MODES_MAX];
+-extern unsigned int tlb_entry_addr_read;
+-extern unsigned int tlb_entry_addr_write;
+-extern unsigned int tlb_entry_addend;
+-extern unsigned int sizeof_CPUTLBEntry;
++extern __thread unsigned int temp_buf_offset;
++extern __thread unsigned int tlb_table_n_0_addr_read[MMU_MODES_MAX];
++extern __thread unsigned int tlb_table_n_0_addr_write[MMU_MODES_MAX];
++extern __thread unsigned int tlb_table_n_0_addend[MMU_MODES_MAX];
++extern __thread unsigned int tlb_table_n_0[MMU_MODES_MAX];
++extern __thread unsigned int tlb_entry_addr_read;
++extern __thread unsigned int tlb_entry_addr_write;
++extern __thread unsigned int tlb_entry_addend;
++extern __thread unsigned int sizeof_CPUTLBEntry;
+ 
+ /* XXX: make safe guess about sizes */
+ #define MAX_OP_PER_INSTR 208
+diff --git a/tcg/i386/tcg-target.c b/tcg/i386/tcg-target.c
+index 83134e2..caaf598 100644
+--- a/tcg/i386/tcg-target.c
++++ b/tcg/i386/tcg-target.c
+@@ -85,7 +85,7 @@ static inline TCGReg128 tcg_new_reg_128(TCGReg high, TCGReg low)
+     return (TCGReg128) { .low = low, .high = high };
+ }
+ 
+-static uint8_t *tb_ret_addr;
++static __thread uint8_t *tb_ret_addr;
+ 
+ static void patch_reloc(uint8_t *code_ptr, int type, tcg_target_long value, tcg_target_long addend)
+ {
+diff --git a/tcg/optimize.c b/tcg/optimize.c
+index f378f81..7b2ee3f 100644
+--- a/tcg/optimize.c
++++ b/tcg/optimize.c
+@@ -46,7 +46,7 @@ struct tcg_temp_info {
+     tcg_target_ulong val;
+ };
+ 
+-static struct tcg_temp_info temps[TCG_MAX_TEMPS];
++static __thread struct tcg_temp_info temps[TCG_MAX_TEMPS];
+ 
+ /* Reset TEMP's state to TCG_TEMP_ANY.  If TEMP was a representative of some
+    class of equivalent temp's, a new representative should be chosen in this
+diff --git a/tcg/tcg.c b/tcg/tcg.c
+index 179ea4c..85cd069 100644
+--- a/tcg/tcg.c
++++ b/tcg/tcg.c
+@@ -63,19 +63,19 @@ static void tcg_out_st(TCGContext *s, TCGType type, TCGReg arg, TCGReg arg1, tcg
+ static int tcg_target_const_match(tcg_target_long val, const TCGArgConstraint *arg_ct);
+ static int tcg_target_get_call_iarg_regs_count(int flags);
+ 
+-TCGOpDef tcg_op_defs[] = {
++__thread TCGOpDef tcg_op_defs[] = {
+ #define DEF(s, oargs, iargs, cargs, flags) { #s, oargs, iargs, cargs, iargs + oargs + cargs, flags },
+ #include "tcg-opc.h"
+ #undef DEF
+ };
+-const size_t tcg_op_defs_max = ARRAY_SIZE(tcg_op_defs);
++const __thread size_t tcg_op_defs_max = ARRAY_SIZE(tcg_op_defs);
+ 
+-static TCGRegSet tcg_target_available_regs[2];
+-static TCGRegSet tcg_target_call_clobber_regs;
++static __thread TCGRegSet tcg_target_available_regs[2];
++static __thread TCGRegSet tcg_target_call_clobber_regs;
+ 
+ /* XXX: move that inside the context */
+-uint16_t *gen_opc_ptr;
+-TCGArg *gen_opparam_ptr;
++__thread uint16_t *gen_opc_ptr;
++__thread TCGArg *gen_opparam_ptr;
+ 
+ static inline void tcg_out8(TCGContext *s, uint8_t v)
+ {
+@@ -221,12 +221,12 @@ static void tcg_pool_free(TCGContext *s)
+     }
+ }
+ 
+-static TCGContext ctx;
+-static TCGArg gen_opparam_buf[OPPARAM_BUF_SIZE];
+-static uint16_t gen_opc_buf[OPC_BUF_SIZE];
++static __thread TCGContext ctx;
++static __thread TCGArg gen_opparam_buf[OPPARAM_BUF_SIZE];
++static __thread uint16_t gen_opc_buf[OPC_BUF_SIZE];
+ 
+-static uint16_t gen_insn_end_off[TCG_MAX_INSNS];
+-static target_ulong gen_insn_data[TCG_MAX_INSNS][TARGET_INSN_START_WORDS];
++static __thread uint16_t gen_insn_end_off[TCG_MAX_INSNS];
++static __thread target_ulong gen_insn_data[TCG_MAX_INSNS][TARGET_INSN_START_WORDS];
+ 
+ void tcg_attach(tcg_t *c)
+ {
+diff --git a/tcg/tcg.h b/tcg/tcg.h
+index 0ebd878..3cdd389 100644
+--- a/tcg/tcg.h
++++ b/tcg/tcg.h
+@@ -28,7 +28,7 @@
+ 
+ ///  INSTEAD OF QEMU-COMMON
+ #ifndef TARGET_PAGE_BITS
+-extern int TARGET_PAGE_BITS;
++extern __thread int TARGET_PAGE_BITS;
+ #endif
+ 
+ #ifndef TARGET_LONG_BITS
+@@ -544,8 +544,8 @@ struct TCGContext {
+     uint32_t *number_of_registered_cpus;
+ };
+ 
+-extern uint16_t *gen_opc_ptr;
+-extern TCGArg *gen_opparam_ptr;
++extern __thread uint16_t *gen_opc_ptr;
++extern __thread TCGArg *gen_opparam_ptr;
+ 
+ /* pool based memory allocation */
+ 
+@@ -573,8 +573,8 @@ typedef struct tcg_t {
+     DisasContextBase *disas_context;
+ } tcg_t;
+ 
+-extern tcg_t *tcg;
+-extern TCGv_env cpu_env;
++extern __thread tcg_t *tcg;
++extern __thread TCGv_env cpu_env;
+ 
+ void tcg_attach(tcg_t *con);
+ 
+@@ -699,8 +699,8 @@ typedef struct TCGOpDef {
+     int *sorted_args;
+ } TCGOpDef;
+ 
+-extern TCGOpDef tcg_op_defs[];
+-extern const size_t tcg_op_defs_max;
++extern __thread TCGOpDef tcg_op_defs[];
++extern __thread const size_t tcg_op_defs_max;
+ 
+ typedef struct TCGTargetOpDef {
+     TCGOpcode op;
+diff --git a/tlib-alloc.c b/tlib-alloc.c
+index 12ea480..da7d0ac 100644
+--- a/tlib-alloc.c
++++ b/tlib-alloc.c
+@@ -21,12 +21,12 @@
+ #include "tlib-alloc.h"
+ #include "tcg/tcg.h"
+ 
+-uint8_t *tcg_rw_buffer;
+-uint8_t *tcg_rx_buffer;
++__thread uint8_t *tcg_rw_buffer;
++__thread uint8_t *tcg_rx_buffer;
+ 
+-uint64_t code_gen_buffer_size;
++__thread uint64_t code_gen_buffer_size;
+ 
+-intptr_t tcg_wx_diff;
++__thread intptr_t tcg_wx_diff;
+ 
+ #if (defined(__linux__) || defined(__APPLE__)) && (!defined(__aarch64__))
+ static bool alloc_code_gen_buf_unified(uint64_t size)

@@ -1,0 +1,13 @@
+diff --git a/tcg/tcg-op.h b/tcg/tcg-op.h
+index 174a9c4..b50863b 100644
+--- a/tcg/tcg-op.h
++++ b/tcg/tcg-op.h
+@@ -32,7 +32,7 @@
+ #include "../include/hash-table-test.h"
+ 
+ typedef struct CPUState CPUState;
+-extern CPUState *cpu;
++extern __thread CPUState *cpu;
+ 
+ #if TARGET_LONG_BITS == 64
+ #define tcg_gen_movi_tl      tcg_gen_movi_i64

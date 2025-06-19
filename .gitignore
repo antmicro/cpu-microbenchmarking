@@ -1,0 +1,23 @@
+# Build artifacts
+*.o
+cpu-microbenchmark
+cpu-benchmark
+cpu-benchmark_*
+
+# Benchmark results
+*.csv
+*.svg
+
+# Other repositories
+tlib/
+tlib_*/
+benchmark/
+
+# IDE
+.vscode/
+
+# GDB
+.gdb_history
+
+# Python
+.venv
